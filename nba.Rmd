@@ -1,0 +1,39 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+library(dplyr)
+```
+
+
+
+```{r}
+combine_stats <- read.csv("csv/draft_combine_stats.csv")
+history <- read.csv("csv/draft_history.csv")
+```
+
+
+```{r}
+combine_stats <- combine_stats %>% select(player_id, season, everything())
+bench_press_index <- which(names(combine_stats) == "bench_press")
+combine_stats <- combine_stats[, 1:bench_press_index]
+```
+
+
+
+```{r}
+merged_data <- merge(combine_stats, history, by.x = c("player_id", "season"), by.y = c("person_id", "season"))
+```
+
+
+```{r}
+write.csv(merged_data, "csv/merged_data.csv", row.names = FALSE)
+```
+
+
+
+
+
