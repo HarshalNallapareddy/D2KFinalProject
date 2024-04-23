@@ -3,18 +3,15 @@ title: "R Notebook"
 output: html_notebook
 ---
 
-
 ```{r}
 library(dplyr)
+
 ```
-
-
 
 ```{r}
 combine_stats <- read.csv("csv/draft_combine_stats.csv")
 history <- read.csv("csv/draft_history.csv")
 ```
-
 
 ```{r}
 combine_stats <- combine_stats %>% select(player_id, season, everything())
@@ -22,18 +19,65 @@ bench_press_index <- which(names(combine_stats) == "bench_press")
 combine_stats <- combine_stats[, 1:bench_press_index]
 ```
 
-
-
 ```{r}
 merged_data <- merge(combine_stats, history, by.x = c("player_id", "season"), by.y = c("person_id", "season"))
 ```
-
 
 ```{r}
 write.csv(merged_data, "csv/merged_data.csv", row.names = FALSE)
 ```
 
+```{r}
+
+#More pre-processing. ***READ THIS***
+# 1. Had to filter the relevant columns, for now only chose a few physical attributes but could expand if needed
+# 2. Removed rows where null in position
+# 3. Split rows where position is given as "SF-SG" into two separate rows with positoin as "SF" and "SG"
+# 4. Mapped string positions to the numeric positions to work in lm
 
 
+# Select relevant columns for analysis
+filtered_data <- merged_data[c("season", "position", "height_wo_shoes", "weight", "wingspan")]
 
+#remove datapoints where position is not available
+clean_data <- filtered_data[complete.cases(filtered_data$position), ]
 
+#some rows have positions like "SF-SG". Split those rows into two identical rows except one row is "SF" and the other row is "SG"
+split_positions <- function(data) {
+  # Split positions with hyphen
+  positions <- strsplit(as.character(data$position), "-")
+  # Create a new data frame to store the split positions
+  new_data <- data[rep(1:nrow(data), lengths(positions)), ]
+  # Assign split positions to the new data frame
+  new_data$position <- unlist(positions)
+  # Reset row names
+  rownames(new_data) <- NULL
+  return(new_data)
+}
+
+split_data <- split_positions(clean_data)
+#map the positions to their numerical counterparts
+position_map <- c("PG" = 1, "SG" = 2, "SF" = 3, "PF" = 4, "C" = 5)
+mapped_data <- split_data
+mapped_data$position <- position_map[split_data$position]
+
+```
+
+```{r}
+write.csv(mapped_data, "csv/mapped_data.csv", row.names = FALSE)
+```
+
+```{r}
+#finally multiple regression
+
+results <- list()
+
+# Loop over unique seasons
+for (season in unique(mapped_data$season)) {
+  season_subset <- mapped_data[mapped_data$season == season, ]
+  model <- lm(position ~ weight + wingspan + height_wo_shoes, data = mapped_data)
+  results[[as.character(season)]] <- summary(model) # remove summary if needed
+}
+
+results
+```
