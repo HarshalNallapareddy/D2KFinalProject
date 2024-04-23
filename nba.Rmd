@@ -5,6 +5,8 @@ output: html_notebook
 
 ```{r}
 library(dplyr)
+library(corrplot)
+library(ggplot2)
 
 ```
 
@@ -37,7 +39,7 @@ write.csv(merged_data, "csv/merged_data.csv", row.names = FALSE)
 
 
 # Select relevant columns for analysis
-filtered_data <- merged_data[c("season", "position", "height_wo_shoes", "weight", "wingspan")]
+filtered_data <- merged_data[c("season", "position", "height_wo_shoes", "weight", "wingspan", "max_vertical_leap", "bench_press")]
 
 #remove datapoints where position is not available
 clean_data <- filtered_data[complete.cases(filtered_data$position), ]
@@ -66,6 +68,21 @@ mapped_data$position <- position_map[split_data$position]
 ```{r}
 write.csv(mapped_data, "csv/mapped_data.csv", row.names = FALSE)
 ```
+
+```{r}
+# Impute missing values (simple example using mean imputation)
+for(col in names(mapped_data)) {
+  mapped_data[, col] <- ifelse(is.na(mapped_data[, col]), 
+                                 mean(mapped_data[, col], na.rm = TRUE), 
+                                 mapped_data[, col])
+}
+cor_matrix <- cor(mapped_data)
+corrplot(cor_matrix, method = "color", type = "upper", order = "hclust",
+         tl.col = "black", tl.srt = 45, # Corrected parameter names
+         addCoef.col = "black") # Add correlation coefficients to the plot
+```
+
+
 
 ```{r}
 #finally multiple regression
