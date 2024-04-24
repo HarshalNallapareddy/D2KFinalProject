@@ -39,7 +39,7 @@ write.csv(merged_data, "csv/merged_data.csv", row.names = FALSE)
 
 
 # Select relevant columns for analysis
-filtered_data <- merged_data[c("season", "position", "height_wo_shoes", "weight", "wingspan", "max_vertical_leap", "bench_press")]
+filtered_data <- merged_data[c("season", "position", "height_wo_shoes", "weight", "wingspan", "standing_reach","max_vertical_leap", "body_fat_pct", "hand_length", "hand_width", "standing_vertical_leap", "max_vertical_leap", "lane_agility_time", "three_quarter_sprint", "bench_press")]
 
 #remove datapoints where position is not available
 clean_data <- filtered_data[complete.cases(filtered_data$position), ]
@@ -76,10 +76,17 @@ for(col in names(mapped_data)) {
                                  mean(mapped_data[, col], na.rm = TRUE), 
                                  mapped_data[, col])
 }
-cor_matrix <- cor(mapped_data)
-corrplot(cor_matrix, method = "color", type = "upper", order = "hclust",
-         tl.col = "black", tl.srt = 45, # Corrected parameter names
-         addCoef.col = "black") # Add correlation coefficients to the plot
+corrplot(cor_matrix, method = "color", 
+         type = "upper", 
+         order = "hclust",
+         tl.cex = 0.6, # Text size for labels
+         cl.cex = 0.6, # Text size for color legend
+         number.cex = 0.6, # Size of the correlation coefficient
+         addCoef.col = "black", # Color for the correlation coefficients
+         tl.srt = 45, # Rotation of text labels
+         tl.col = "black", # Text color for labels
+         # Add rectangles for clusters, adjust 'k' as needed
+         addrect = 2)
 ```
 
 
