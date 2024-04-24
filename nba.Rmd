@@ -98,12 +98,32 @@ corrplot(cor_matrix, method = "color",
 
 results <- list()
 
-# Loop over unique seasons
-for (season in unique(mapped_data$season)) {
+# Get unique seasons and sort them
+seasons_sorted <- sort(unique(mapped_data$season))
+
+# Loop over sorted seasons
+for (season in seasons_sorted) {
   season_subset <- mapped_data[mapped_data$season == season, ]
-  model <- lm(position ~ weight + wingspan + height_wo_shoes, data = mapped_data)
-  results[[as.character(season)]] <- summary(model) # remove summary if needed
+  model <- lm(position ~ weight + wingspan + height_wo_shoes + standing_reach + max_vertical_leap + body_fat_pct + hand_length + hand_width + standing_vertical_leap + max_vertical_leap + lane_agility_time + three_quarter_sprint + bench_press, data = season_subset)
+
+  results[[as.character(season)]] <- summary(model) # Store model summary
 }
 
 results
+
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
