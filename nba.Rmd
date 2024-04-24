@@ -76,6 +76,8 @@ for(col in names(mapped_data)) {
                                  mean(mapped_data[, col], na.rm = TRUE), 
                                  mapped_data[, col])
 }
+cor_matrix <- cor(mapped_data)
+
 corrplot(cor_matrix, method = "color", 
          type = "upper", 
          order = "hclust",
