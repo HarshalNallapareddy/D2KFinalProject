@@ -1,0 +1,287 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+UNABLE TO KNIT TO HTML DUE TO ISSUE [could not find function "gather"] SUBMITTING RMD FILE INSTEAD
+
+```{r}
+library(dplyr)
+library(corrplot)
+library(ggplot2)
+
+```
+
+```{r}
+combine_stats <- read.csv("csv/draft_combine_stats.csv")
+history <- read.csv("csv/draft_history.csv")
+```
+
+```{r}
+combine_stats <- combine_stats %>% select(player_id, season, everything())
+bench_press_index <- which(names(combine_stats) == "bench_press")
+combine_stats <- combine_stats[, 1:bench_press_index]
+```
+
+```{r}
+merged_data <- merge(combine_stats, history, by.x = c("player_id", "season"), by.y = c("person_id", "season"))
+```
+
+```{r}
+write.csv(merged_data, "csv/merged_data.csv", row.names = FALSE)
+```
+
+```{r}
+
+#More pre-processing. ***READ THIS***
+# 1. Had to filter the relevant columns, for now only chose a few physical attributes but could expand if needed
+# 2. Removed rows where null in position
+# 3. Split rows where position is given as "SF-SG" into two separate rows with positoin as "SF" and "SG"
+# 4. Mapped string positions to the numeric positions to work in lm
+
+
+# Select relevant columns for analysis
+filtered_data <- merged_data[c("season", "position", "height_wo_shoes", "weight", "wingspan", "standing_reach","max_vertical_leap", "body_fat_pct", "hand_length", "hand_width", "standing_vertical_leap", "max_vertical_leap", "lane_agility_time", "three_quarter_sprint", "bench_press")]
+
+#remove datapoints where position is not available
+clean_data <- filtered_data[complete.cases(filtered_data$position), ]
+
+#some rows have positions like "SF-SG". Split those rows into two identical rows except one row is "SF" and the other row is "SG"
+split_positions <- function(data) {
+  # Split positions with hyphen
+  positions <- strsplit(as.character(data$position), "-")
+  # Create a new data frame to store the sp lit positions
+  new_data <- data[rep(1:nrow(data), lengths(positions)), ]
+  # Assign split positions to the new data frame
+  new_data$position <- unlist(positions)
+  # Reset row names
+  rownames(new_data) <- NULL
+  return(new_data)
+}
+
+split_data <- split_positions(clean_data)
+#map the positions to their numerical counterparts
+position_map <- c("PG" = 1, "SG" = 2, "SF" = 3, "PF" = 4, "C" = 5)
+mapped_data <- split_data
+mapped_data$position <- position_map[split_data$position]
+
+```
+
+```{r}
+write.csv(mapped_data, "csv/mapped_data.csv", row.names = FALSE)
+```
+
+```{r}
+for(col in names(mapped_data)) {
+  mapped_data[, col] <- ifelse(is.na(mapped_data[, col]), 
+                                 mean(mapped_data[, col], na.rm = TRUE), 
+                                 mapped_data[, col])
+}
+cor_matrix <- cor(mapped_data)
+
+corrplot(cor_matrix, method = "color", 
+         type = "upper", 
+         order = "hclust",
+         tl.cex = 0.6, 
+         cl.cex = 0.6, 
+         number.cex = 0.6,
+         addCoef.col = "black",
+         tl.srt = 45,
+         tl.col = "black",
+         addrect = 2)
+```
+
+
+
+```{r}
+results <- list()
+
+seasons_sorted <- sort(unique(mapped_data$season))
+
+for (season in seasons_sorted) {
+  season_subset <- mapped_data[mapped_data$season == season, ]
+  model <- lm(position ~ weight + wingspan + height_wo_shoes + standing_reach + max_vertical_leap + body_fat_pct + hand_length + hand_width + standing_vertical_leap + max_vertical_leap + lane_agility_time + three_quarter_sprint + bench_press, data = season_subset)
+
+  results[[as.character(season)]] <- summary(model) 
+}
+
+results
+
+```
+
+```{r}
+
+library(dplyr)
+
+# Calculating mean and standard deviation for each IV by position and season
+stats_by_position_season <- mapped_data %>%
+  group_by(season, position) %>%
+  summarise(across(c(weight, wingspan, height_wo_shoes, standing_reach, max_vertical_leap, 
+                      body_fat_pct, hand_length, hand_width, standing_vertical_leap, max_vertical_leap, 
+                      lane_agility_time, three_quarter_sprint, bench_press), 
+                   list(mean = ~mean(.x, na.rm = TRUE), sd = ~sd(.x, na.rm = TRUE))))
+
+print(stats_by_position_season)
+```
+```{r}
+library(ggplot2)
+
+# Example plot for one characteristic, WINGSPAN!
+ggplot(stats_by_position_season, aes(x = season, y = wingspan_mean, color = as.factor(position))) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Change in Average Wingspan by Position Across Seasons",
+       x = "Season",
+       y = "Average Wingspan",
+       color = "Position") +
+  theme_minimal()
+
+```
+
+```{r}
+# ANOVA for WINGSPANc across seasons and positions
+anova_result <- aov(wingspan ~ position * season, data = mapped_data)
+summary(anova_result)
+
+```
+
+```{r}
+library(dplyr)
+
+# List of player characteristics to test
+player_characteristics <- c("weight", "wingspan", "height_wo_shoes", "standing_reach", 
+                            "max_vertical_leap", "body_fat_pct", "hand_length", 
+                            "hand_width", "standing_vertical_leap", "max_vertical_leap", 
+                            "lane_agility_time", "three_quarter_sprint", "bench_press")
+
+
+results <- list()
+
+for(characteristic in player_characteristics) {
+  formula <- as.formula(paste(characteristic, "~ position * season"))
+  
+  anova_result <- aov(formula, data = mapped_data)
+  
+  p_values <- summary(anova_result)[[1]]["Pr(>F)"]
+  
+  results[[characteristic]] <- p_values
+  
+  cat(characteristic, "\n")
+  cat("Position effect p-value: ", p_values[1,1], "\n")
+  cat("Season effect p-value: ", p_values[2,1], "\n")
+  cat("Interaction effect p-value: ", p_values[3,1], "\n\n")
+}
+
+```
+
+```{R}
+library(dplyr)
+
+# List of player characteristics
+player_characteristics <- c("weight", "wingspan", "height_wo_shoes", "standing_reach", 
+                            "max_vertical_leap", "body_fat_pct", "hand_length", 
+                            "hand_width", "standing_vertical_leap", "max_vertical_leap", 
+                            "lane_agility_time", "three_quarter_sprint", "bench_press")
+
+
+interaction_p_values <- numeric(length(player_characteristics))
+
+for(i in seq_along(player_characteristics)) {
+  characteristic <- player_characteristics[i]
+  
+  formula <- as.formula(paste(characteristic, "~ position * season"))
+  
+  anova_result <- aov(formula, data = mapped_data)
+  
+  interaction_p_values[i] <- summary(anova_result)[[1]]["Pr(>F)"][3, 1]
+}
+
+
+interaction_effects_table <- data.frame(
+  Characteristic = player_characteristics,
+  Interaction_Effect_P_Value = interaction_p_values
+)
+
+
+print(interaction_effects_table)
+
+```
+
+```{R}
+library(ggplot2)
+library(gridExtra) 
+
+
+
+characteristics <- c("lane_agility_time", "max_vertical_leap", "bench_press", "height_wo_shoes")
+
+
+plots_list <- list()
+
+
+for (char in characteristics) {
+  
+  p <- ggplot(stats_by_position_season, aes_string(x = "season", y = paste(char, "_mean", sep=""), color = "as.factor(position)")) +
+    geom_line() +
+    geom_point() +
+    labs(title = paste("Change in Average", char, "by Position Across Seasons"),
+         x = "Season",
+         y = paste("Average", char),
+         color = "Position") +
+    theme_minimal() +
+    theme(legend.position = "none", 
+          plot.title = element_text(size = 12), 
+          axis.title = element_text(size = 10))
+    
+  
+  plots_list[[char]] <- p
+}
+
+
+grid_plot <- do.call(gridExtra::grid.arrange, c(plots_list, ncol = 2)) 
+
+
+ggsave("combined_plots.png", grid_plot, width = 15, height = 10, dpi = 300)
+
+
+
+
+```
+```{R}
+library(ggplot2)
+
+
+selected_characteristics <- c("lane_agility_time", "max_vertical_leap", "bench_press", "height_wo_shoes")
+
+
+position_names <- c("PG", "SG", "SF", "PF", "C") 
+stats_by_position_season$position <- factor(stats_by_position_season$position, labels = position_names)
+
+
+stats_long <- stats_by_position_season %>%
+  gather(key = "Characteristic", value = "Value", all_of(selected_characteristics))
+
+
+p <- ggplot(stats_long, aes(x = season, y = Value, color = position)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~Characteristic, scales = "free_y", ncol = 2) + 
+  theme_minimal() +
+  labs(color = "Position") +
+  theme(legend.position = "bottom", 
+        plot.title = element_text(size = 12), 
+        axis.title = element_text(size = 10)) 
+
+
+ggsave("combined_plots_with_legend.png", p, width = 20, height = 15, dpi = 300)
+
+```
+
+
+
+
+
+
+
